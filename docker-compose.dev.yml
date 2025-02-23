@@ -1,0 +1,7 @@
+services:
+  app:
+    command: tail -f /dev/null
+    volumes:
+      - writable-home:/home/django-user
+volumes:
+  writable-home:

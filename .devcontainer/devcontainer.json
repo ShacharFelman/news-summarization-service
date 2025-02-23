@@ -1,0 +1,28 @@
+{
+    "name": "News Summarization Django App",
+    "dockerComposeFile": [
+        "../docker-compose.yml",
+        "../docker-compose.dev.yml"
+    ],
+    "service": "app",
+    "workspaceFolder": "/app",
+    "containerEnv": {
+        "HOME": "/home/django-user",
+        "DISPLAY": "none",
+        "VSCODE_REMOTE_CONTAINERS_SKIP_X11": "1"
+    },
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "python.defaultInterpreterPath": "/py/bin/python"
+            },
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-azuretools.vscode-docker"
+            ]
+        }
+    },
+    "remoteUser": "root",
+    "postCreateCommand": "mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix && su django-user -c \"echo \\\"alias runserver='python manage.py wait_for_db && python manage.py migrate && python manage.py runserver 0.0.0.0:8000'\\\" >> /home/django-user/.profile\""
+}
