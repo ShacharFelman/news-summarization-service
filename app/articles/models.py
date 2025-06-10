@@ -1,6 +1,7 @@
 from django.db import models
 
 class Article(models.Model):
+    """ Article model representing a news article. """
     title = models.CharField(max_length=255, help_text="The title of the article.")
     content = models.TextField(help_text="The full content of the article.")
     url = models.URLField(unique=True, help_text="The original URL of the article.")
