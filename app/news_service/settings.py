@@ -12,10 +12,20 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 import os
 from pathlib import Path
+from django.urls import reverse_lazy
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# API Configurations
+NEWSAPI_KEY = os.environ.get('NEWSAPI_KEY', '')
+NEWSAPI_BASE_URL = 'https://newsapi.org/v2'
+# Use Django's reverse_lazy to resolve the articles API URL dynamically
+try:
+    ARTICLES_API_URL = reverse_lazy('articles:article-list')
+except Exception:
+    # Fallback for contexts where Django isn't fully loaded (e.g., scripts, celery)
+    ARTICLES_API_URL = os.environ.get('ARTICLES_API_URL', 'http://localhost:8000/api/article/')
 
 
 # Quick-start development settings - unsuitable for production
