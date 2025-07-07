@@ -18,8 +18,7 @@ from django.urls import reverse_lazy
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # API Configurations
-NEWSAPI_KEY = os.environ.get('NEWSAPI_KEY', '')
-NEWSAPI_BASE_URL = 'https://newsapi.org/v2'
+NEWSAPI_API_KEY = os.environ.get('NEWSAPI_API_KEY', '')
 # Use Django's reverse_lazy to resolve the articles API URL dynamically
 try:
     ARTICLES_API_URL = reverse_lazy('articles:article-list')
@@ -154,4 +153,14 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     'COMPONENT_SPLIT_REQUEST': True,
+}
+
+# Celery settings
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_BEAT_SCHEDULE = {
+    'fetch-articles-every-6-hours': {
+        'task': 'fetchers.tasks.fetch_articles_from_newsapi',
+        'schedule': 21600,  # 6 hours in seconds
+    },
 }

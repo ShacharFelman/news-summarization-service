@@ -1,27 +1,18 @@
 """Serializers for the fetchers app."""
 from rest_framework import serializers
-from .models import NewsSource, FetchLog
+from .models import NewsClientFetcher, FetchLog
 
 
-class NewsSourceSerializer(serializers.ModelSerializer):
-    """Serializer for NewsSource model."""
+class NewsClientFetcherSerializer(serializers.ModelSerializer):
+    """Serializer for NewsClientFetcher model."""
 
     class Meta:
-        model = NewsSource
+        model = NewsClientFetcher
         fields = [
-            'id', 'name', 'source_type', 'is_active',
-            'config', 'fetch_interval', 'last_fetch',
-            'created_at', 'updated_at'
+            'id', 'name', 'is_active', 'class_path', 'config',
+            'fetch_interval', 'last_fetch', 'created_at', 'updated_at'
         ]
         read_only_fields = ['last_fetch', 'created_at', 'updated_at']
-
-    def validate_config(self, value):
-        """Validate source configuration."""
-        required_fields = ['api_key']
-        for field in required_fields:
-            if field not in value:
-                raise serializers.ValidationError(f"Missing required field: {field}")
-        return value
 
 
 class FetchLogSerializer(serializers.ModelSerializer):
@@ -33,11 +24,10 @@ class FetchLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = FetchLog
         fields = [
-            'id', 'source', 'source_name', 'fetch_type',
-            'status', 'started_at', 'completed_at',
-            'articles_fetched', 'articles_saved',
-            'error_message', 'query_params', 'metadata',
-            'duration'
+            'id', 'source', 'source_name', 'status',
+            'started_at', 'completed_at', 'articles_fetched',
+            'articles_saved', 'error_message', 'query_params',
+            'metadata', 'raw_data_file', 'duration'
         ]
         read_only_fields = fields
 
