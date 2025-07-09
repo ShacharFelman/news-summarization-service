@@ -15,4 +15,4 @@ class FetchersConfig(AppConfig):
         Perform initialization when Django starts.
         This is a good place to set up signal handlers if needed.
         """
-        pass  # Add any startup initialization here if needed
+        pass 

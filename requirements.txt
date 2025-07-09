@@ -6,3 +6,5 @@ celery
 redis
 requests
 httpx
+langchain
+langchain_openai

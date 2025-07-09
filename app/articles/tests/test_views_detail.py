@@ -38,3 +38,32 @@ class TestArticleDetailView(TestCase):
         url = detail_url(9999)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_get_article_summary(self):
+        """Can fetch a summary for an article via the summary endpoint."""
+        article = create_article(title='Summary Article', url='http://example.com/summary')
+        # Create a completed summary for this article
+        from summarizer.models import Summary
+        summary = Summary.objects.create(
+            article=article,
+            summary_text='Short summary.',
+            ai_model='gpt-4.1-nano',
+            status='completed',
+            word_count=2,
+            tokens_used=10
+        )
+        url = detail_url(article.id) + 'summary/'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data['id'], summary.id)
+        self.assertEqual(data['summary_text'], 'Short summary.')
+        self.assertEqual(data['status'], 'completed')
+        self.assertEqual(data['ai_model'], 'gpt-4.1-nano')
+
+    def test_get_article_summary_404(self):
+        """Returns 404 if no summary exists for the article."""
+        article = create_article(title='No Summary', url='http://example.com/nosummary')
+        url = detail_url(article.id) + 'summary/'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

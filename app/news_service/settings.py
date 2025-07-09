@@ -19,6 +19,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # API Configurations
 NEWSAPI_API_KEY = os.environ.get('NEWSAPI_API_KEY', '')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 # Use Django's reverse_lazy to resolve the articles API URL dynamically
 try:
     ARTICLES_API_URL = reverse_lazy('articles:article-list')
@@ -55,6 +56,7 @@ INSTALLED_APPS = [
     'articles',
     'fetchers',
     'news_service',
+    'summarizer',
 ]
 
 MIDDLEWARE = [
