@@ -1,18 +1,19 @@
 """Serializers for the fetchers app."""
 from rest_framework import serializers
-from .models import NewsClientFetcher, FetchLog
+from .models import FetchLog
+# from .models import NewsClientFetcher
 
 
-class NewsClientFetcherSerializer(serializers.ModelSerializer):
-    """Serializer for NewsClientFetcher model."""
+# class NewsClientFetcherSerializer(serializers.ModelSerializer):
+#     """Serializer for NewsClientFetcher model."""
 
-    class Meta:
-        model = NewsClientFetcher
-        fields = [
-            'id', 'name', 'is_active', 'class_path', 'config',
-            'fetch_interval', 'last_fetch', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['last_fetch', 'created_at', 'updated_at']
+#     class Meta:
+#         model = NewsClientFetcher
+#         fields = [
+#             'id', 'name', 'is_active', 'class_path', 'config',
+#             'fetch_interval', 'last_fetch', 'created_at', 'updated_at'
+#         ]
+#         read_only_fields = ['last_fetch', 'created_at', 'updated_at']
 
 
 class FetchLogSerializer(serializers.ModelSerializer):

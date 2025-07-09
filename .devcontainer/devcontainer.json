@@ -1,16 +1,41 @@
 {
-    "name": "News Summarization Django App",
+    "name": "News Service Dev Container",
     "dockerComposeFile": [
         "../docker-compose.yml",
         "../docker-compose.dev.yml"
     ],
     "service": "app",
     "workspaceFolder": "/app",
+    "runServices": [
+        "app",
+        "db",
+        "redis",
+        "celery-worker",
+        "celery-beat",
+        "celery-flower"
+    ],
+    "forwardPorts": [
+        8000,
+        5432,
+        6379,
+        5555
+    ],
+    "portsAttributes": {
+        "8000": {
+            "label": "Django App",
+            "onAutoForward": "notify"
+        },
+        "5555": {
+            "label": "Celery Flower",
+            "onAutoForward": "notify"
+        }
+    },
     "containerEnv": {
         "HOME": "/home/django-user",
         "DISPLAY": "none",
         "VSCODE_REMOTE_CONTAINERS_SKIP_X11": "1"
     },
+
     "customizations": {
         "vscode": {
             "settings": {

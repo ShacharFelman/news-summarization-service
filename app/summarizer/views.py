@@ -7,6 +7,8 @@ from django.contrib.auth.decorators import login_required
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import TokenAuthentication
 from drf_spectacular.utils import extend_schema
 from .service import SummarizerService
 from .models import Summary
@@ -17,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 class SummarizerView(APIView):
     """Base view for summarizer functionality."""
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.summarizer_service = SummarizerService()

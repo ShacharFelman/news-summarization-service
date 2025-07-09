@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-# from rest_framework.permissions import IsAuthenticated
+from news_service.permissions import IsAuthenticatedReadOnlyOrAdmin
 
 from articles.models import Article
 from articles.serializers import ArticleSerializer
@@ -24,7 +24,7 @@ class ArticleViewSet(viewsets.ModelViewSet):
 
     queryset = Article.objects.all().order_by('-published_date')
     serializer_class = ArticleSerializer
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedReadOnlyOrAdmin]
 
     @action(detail=True, methods=['get'], url_path='summary')
     def summary(self, request, pk=None):

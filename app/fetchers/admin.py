@@ -2,16 +2,17 @@
 # Admin configuration for the fetchers app.
 # """
 from django.contrib import admin
-from .models import NewsClientFetcher, FetchLog
+from .models import FetchLog
+# from .models import NewsClientFetcher
 
 
-@admin.register(NewsClientFetcher)
-class NewsClientFetcherAdmin(admin.ModelAdmin):
-    """Admin configuration for the NewsClientFetcher model."""
-    list_display = ('name', 'is_active', 'fetch_interval', 'last_fetch')
-    search_fields = ('name',)
-    list_filter = ('is_active',)
-    readonly_fields = ('last_fetch', 'created_at', 'updated_at')
+# @admin.register(NewsClientFetcher)
+# class NewsClientFetcherAdmin(admin.ModelAdmin):
+#     """Admin configuration for the NewsClientFetcher model."""
+#     list_display = ('name', 'is_active', 'fetch_interval', 'last_fetch')
+#     search_fields = ('name',)
+#     list_filter = ('is_active',)
+#     readonly_fields = ('last_fetch', 'created_at', 'updated_at')
 
 
 @admin.register(FetchLog)

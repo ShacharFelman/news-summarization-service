@@ -6,15 +6,20 @@ from rest_framework.views import APIView
 from django.utils import timezone
 from fetchers.models import FetchLog
 from fetchers.service import NewsApiFetcher, FetcherError
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import TokenAuthentication
 
 
 class ArticleFetchView(APIView):
     """View to manually trigger NewsApiFetcher.fetch_and_save."""
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         query_params = request.data.get('query_params', None)
         try:
             fetcher = NewsApiFetcher()
-            fetcher.fetch_and_save(query_params)
+            fetcher.fetch_and_save(query_params, source='NewsClientFetcher')
             return Response({'message': 'Fetch and save completed successfully.'}, status=status.HTTP_200_OK)
         except FetcherError as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
