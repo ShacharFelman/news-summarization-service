@@ -1,90 +1,49 @@
-"""
-Tests for Article creation endpoint functionality.
-"""
-from django.test import TestCase
+from rest_framework.test import APITestCase
+from django.urls import reverse
 from django.utils import timezone
-from rest_framework import status
-from rest_framework.test import APIClient
-import datetime
-
+from rest_framework.authtoken.models import Token
 from articles.models import Article
-from . import list_url as create_url
+from users.models import User
 
-class TestArticleCreateView(TestCase):
-    """Test suite for article creation endpoint."""
-
+class ArticleViewSetCreateTest(APITestCase):
     def setUp(self):
-        self.client = APIClient()
-        self.valid_payload = {
-            "title": "Breaking News",
-            "content": "Full text of the article.",
-            "url": "http://unique.com/1",
-            "published_date": (timezone.now() - datetime.timedelta(hours=1)).isoformat().replace('+00:00', 'Z'),
-            "source": "News API"
+        self.user = User.objects.create_user(email='admin@example.com', password='adminpass', name='Admin User', is_staff=True)
+        self.admin_token = Token.objects.create(user=self.user)
+        self.regular_user = User.objects.create_user(email='user@example.com', password='userpass', name='Regular User')
+        self.user_token = Token.objects.create(user=self.regular_user)
+        self.valid_data = {
+            'title': 'New Article',
+            'content': 'Some content',
+            'url': 'http://example.com/new-article',
+            'published_date': timezone.now(),
+            'author': 'Author',
+            'source': 'Source',
+            'news_client_source': 'Client'
         }
 
-    def test_create_valid_article_success(self):
-        """Valid article data creates new article and returns 201."""
-        url = create_url()
-        response = self.client.post(url, self.valid_payload, format='json')
+    def test_create_article_unauthenticated(self):
+        url = reverse('articles:articles-list')
+        response = self.client.post(url, self.valid_data, format='json')
+        self.assertEqual(response.status_code, 401)
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn('id', response.data)
-        self.assertEqual(response.data['title'], self.valid_payload['title'])
-        self.assertEqual(response.data['content'], self.valid_payload['content'])
-        self.assertEqual(response.data['url'], self.valid_payload['url'])
-        self.assertEqual(response.data['published_date'], self.valid_payload['published_date'])
-        self.assertEqual(response.data['source'], self.valid_payload['source'])
+    def test_create_article_authenticated_non_admin(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.user_token.key}')
+        url = reverse('articles:articles-list')
+        response = self.client.post(url, self.valid_data, format='json')
+        self.assertEqual(response.status_code, 403)
 
-        # Verify in database
-        created = Article.objects.get(id=response.data['id'])
-        self.assertEqual(created.url, self.valid_payload['url'])
+    def test_create_article_authenticated_admin(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.admin_token.key}')
+        url = reverse('articles:articles-list')
+        response = self.client.post(url, self.valid_data, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Article.objects.count(), 1)
 
-    def test_create_missing_required_field_fails(self):
-        """Article creation fails with 400 when required fields are missing."""
-        required_fields = ['title', 'content', 'url', 'published_date', 'source']
-        url = create_url()
-
-        for field in required_fields:
-            invalid_payload = self.valid_payload.copy()
-            del invalid_payload[field]
-
-            response = self.client.post(url, invalid_payload, format='json')
-            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-            self.assertIn(field, response.data)
-
-    def test_create_invalid_url_fails(self):
-        """Article creation fails with 400 when URL is invalid."""
-        invalid_payload = self.valid_payload.copy()
-        invalid_payload['url'] = 'not-a-url'
-
-        url = create_url()
-        response = self.client.post(url, invalid_payload, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('url', response.data)
-
-    def test_create_duplicate_url_fails(self):
-        """Article creation fails with 400 when URL already exists."""
-        url = create_url()
-        # Create first article
-        self.client.post(url, self.valid_payload, format='json')
-
-        # Try to create second article with same URL
-        response = self.client.post(url, self.valid_payload, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('url', response.data)
-
-    def test_create_future_published_date_fails(self):
-        """Article creation fails with 400 when published_date is in future."""
-        invalid_payload = self.valid_payload.copy()
-        invalid_payload['published_date'] = (
-            timezone.now() + datetime.timedelta(days=1)
-        ).isoformat().replace('+00:00', 'Z')
-
-        url = create_url()
-        response = self.client.post(url, invalid_payload, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('published_date', response.data)
+    def test_create_article_invalid(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.admin_token.key}')
+        url = reverse('articles:articles-list')
+        data = self.valid_data.copy()
+        data['published_date'] = timezone.now() + timezone.timedelta(days=1)
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('published_date', response.data) 

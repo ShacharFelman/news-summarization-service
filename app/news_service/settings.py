@@ -204,6 +204,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': True,
         },
+        'summarizer': {
+            'handlers': ['console'],
+            'level': 'ERROR' if os.environ.get('TESTING') else 'INFO',  # Suppress only during tests
+            'propagate': True,
+        },
         'celery': {
             'handlers': ['console'],
             'level': 'INFO',

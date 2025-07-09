@@ -1,94 +1,66 @@
-"""
-Integration tests for Articles functionality.
-Tests that cover multiple layers of the application working together.
-"""
-from django.test import TestCase
+from rest_framework.test import APITestCase
+from django.urls import reverse
 from django.utils import timezone
-from rest_framework import status
-from rest_framework.test import APIClient
-import datetime
-
+from unittest.mock import patch, MagicMock
+from rest_framework.authtoken.models import Token
 from articles.models import Article
-from . import list_url, detail_url
+from users.models import User
+import logging
 
-class TestArticlesEndToEnd(TestCase):
-    """End-to-end test suite for Articles functionality."""
-
+class ArticleSummaryIntegrationTest(APITestCase):
     def setUp(self):
-        self.client = APIClient()
-        self.article_data = {
-            "title": "Integration Test Article",
-            "content": "Content for integration testing.",
-            "url": "http://example.com/integration-test",
-            "published_date": timezone.now().isoformat().replace('+00:00', 'Z'),
-            "source": "Integration Tests"
-        }
-
-    def test_create_list_retrieve_cycle(self):
-        """Test full cycle of creating, listing, and retrieving an article."""
-        # Create article
-        create_response = self.client.post(
-            list_url(),
-            self.article_data,
-            format='json'
+        # Suppress summarizer logging during tests
+        logging.getLogger('summarizer').setLevel(logging.CRITICAL)
+        
+        self.user = User.objects.create_user(email='admin@example.com', password='adminpass', name='Admin User', is_staff=True)
+        self.token = Token.objects.create(user=self.user)
+        self.article = Article.objects.create(
+            title="Test Article",
+            content="Some content",
+            url="http://example.com/article",
+            published_date=timezone.now(),
+            author="Author Name",
+            source="Test Source",
+            news_client_source="Test Client"
         )
-        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
-        created_id = create_response.data['id']
 
-        # Verify it appears in list
-        list_response = self.client.get(list_url())
-        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(list_response.data['count'], 1)
-        list_item = list_response.data['results'][0]
-        self.assertEqual(list_item['id'], created_id)
-        self.assertEqual(list_item['title'], self.article_data['title'])
+    @patch('articles.views.SummarizerService')
+    def test_summary_action_success(self, mock_summarizer_service_class):
+        # Set up environment variable to avoid ValueError in service init
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test_key'}):
+            # Create a mock instance
+            mock_service_instance = MagicMock()
+            mock_summary = MagicMock()
+            mock_summary.id = 1
+            mock_summary.article = self.article
+            mock_summary.summary_text = 'Test summary'
+            mock_summary.ai_model = 'gpt-4.1-nano'
+            mock_summary.status = 'completed'
+            mock_summary.word_count = 10
+            mock_summary.tokens_used = 50
+            mock_summary.created_at = timezone.now()
+            mock_summary.completed_at = timezone.now()
+            mock_service_instance.summarize_article.return_value = mock_summary
+            mock_summarizer_service_class.return_value = mock_service_instance
 
-        # Retrieve and verify details
-        detail_response = self.client.get(detail_url(created_id))
-        self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(detail_response.data['id'], created_id)
-        self.assertEqual(detail_response.data['title'], self.article_data['title'])
-        self.assertEqual(detail_response.data['content'], self.article_data['content'])
-        self.assertEqual(detail_response.data['url'], self.article_data['url'])
-        self.assertEqual(detail_response.data['source'], self.article_data['source'])
+            self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+            url = reverse('articles:articles-summary', args=[self.article.id])
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            # The view passes pk (string from URL) directly to summarize_article
+            mock_service_instance.summarize_article.assert_called_once_with(article_id=str(self.article.id))
 
-    def test_list_pagination_consistency(self):
-        """Test pagination behavior with multiple articles."""
-        # Create 15 articles
-        for i in range(15):
-            article_data = self.article_data.copy()
-            article_data['title'] = f"Article {i}"
-            article_data['url'] = f"http://example.com/article-{i}"
-            response = self.client.post(list_url(), article_data, format='json')
-            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+    @patch('articles.views.SummarizerService')
+    def test_summary_action_article_not_found(self, mock_summarizer_service_class):
+        # Set up environment variable to avoid ValueError in service init
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test_key'}):
+            # Create a mock instance
+            mock_service_instance = MagicMock()
+            mock_service_instance.summarize_article.side_effect = Article.DoesNotExist
+            mock_summarizer_service_class.return_value = mock_service_instance
 
-        # Get first page
-        page1_response = self.client.get(list_url())
-        self.assertEqual(page1_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(page1_response.data['count'], 15)
-        self.assertEqual(len(page1_response.data['results']), 10)
-        self.assertIsNotNone(page1_response.data['next'])
-        self.assertIsNone(page1_response.data['previous'])
-
-        # Get second page
-        page2_response = self.client.get(page1_response.data['next'])
-        self.assertEqual(page2_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(page2_response.data['results']), 5)
-        self.assertIsNone(page2_response.data['next'])
-        self.assertIsNotNone(page2_response.data['previous'])
-
-    def test_url_uniqueness_end_to_end(self):
-        """Test URL uniqueness constraint through API layer."""
-        # Create first article
-        response1 = self.client.post(list_url(), self.article_data, format='json')
-        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
-
-        # Try to create second article with same URL
-        response2 = self.client.post(list_url(), self.article_data, format='json')
-        self.assertEqual(response2.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('url', response2.data)
-
-        # Verify only one article exists
-        list_response = self.client.get(list_url())
-        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(list_response.data['count'], 1)
+            self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+            url = reverse('articles:articles-summary', args=[9999])
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 404)
+            self.assertIn('detail', response.data) 

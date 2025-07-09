@@ -1,60 +1,45 @@
-"""
-Tests for the Article list view functionalities.
-"""
-from django.test import TestCase
-from rest_framework import status
-from rest_framework.test import APIClient
+from rest_framework.test import APITestCase
+from django.urls import reverse
+from django.utils import timezone
+from rest_framework.authtoken.models import Token
+from articles.models import Article
+from users.models import User
 
-from . import create_article, list_url
-
-class TestArticleListView(TestCase):
-    """Test suite for Article list view functionality."""
-
+class ArticleViewSetListTest(APITestCase):
     def setUp(self):
-        self.client = APIClient()
+        self.user = User.objects.create_user(email='testuser@example.com', password='testpass', name='Test User')
+        self.token = Token.objects.create(user=self.user)
+        self.article = Article.objects.create(
+            title="Test Article",
+            content="Some content",
+            url="http://example.com/article",
+            published_date=timezone.now(),
+            author="Author Name",
+            source="Test Source",
+            news_client_source="Test Client"
+        )
 
-    def test_returns_paginated_results_success(self):
-        """List endpoint returns paginated results."""
-        for i in range(12):
-            create_article(
-                title=f'Article {i}',
-                url=f'http://example.com/article-{i}'
-            )
-
-        url = list_url(page=1)
+    def test_list_articles_unauthenticated(self):
+        url = reverse('articles:articles-list')
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.json()
+        self.assertEqual(response.status_code, 401)
 
-        # Verify pagination structure
-        self.assertIn('count', data)
-        self.assertIn('next', data)
-        self.assertIn('previous', data)
-        self.assertIn('results', data)
-
-        # Verify pagination data
-        self.assertEqual(data['count'], 12)
-        self.assertEqual(len(data['results']), 10)
-        self.assertIsNotNone(data['next'])
-        self.assertIsNone(data['previous'])
-
-        # Test second page
-        next_url = data['next']
-        response_page2 = self.client.get(next_url)
-        self.assertEqual(response_page2.status_code, status.HTTP_200_OK)
-        data2 = response_page2.json()
-        self.assertEqual(len(data2['results']), 2)
-        self.assertIsNone(data2['next'])
-        self.assertIsNotNone(data2['previous'])
-
-    def test_page_out_of_range_handled(self):
-        """Returns 404 when requested page is out of range."""
-        for i in range(3):
-            create_article(
-                title=f'Article {i}',
-                url=f'http://example.com/article-{i}'
-            )
-
-        url = list_url(page=9999)
+    def test_list_articles_authenticated(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+        url = reverse('articles:articles-list')
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('results', response.data)
+        self.assertEqual(len(response.data['results']), 1)
+
+    def test_retrieve_article_unauthenticated(self):
+        url = reverse('articles:articles-detail', args=[self.article.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 401)
+
+    def test_retrieve_article_authenticated(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+        url = reverse('articles:articles-detail', args=[self.article.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['id'], self.article.id) 

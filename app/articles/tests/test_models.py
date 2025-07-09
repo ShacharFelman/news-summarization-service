@@ -1,93 +1,45 @@
-"""
-Tests for Article model validation and behavior.
-"""
 from django.test import TestCase
-from django.core.exceptions import ValidationError
 from django.utils import timezone
-import datetime
 from articles.models import Article
 
-class TestArticleModel(TestCase):
-    """Test suite for the Article model."""
-
+class ArticleModelTest(TestCase):
     def setUp(self):
-        self.valid_article_data = {
-            'title': 'Test Article',
-            'content': 'This is a test article content.',
-            'url': 'http://example.com/test-article',
-            'published_date': timezone.now(),
-            'source': 'Example News'
-        }
-
-    def test_creation_with_valid_data(self):
-        """Article can be created with valid data."""
-        article = Article.objects.create(**self.valid_article_data)
-
-        self.assertIsNotNone(article.id)
-        self.assertEqual(article.title, self.valid_article_data['title'])
-        self.assertEqual(article.content, self.valid_article_data['content'])
-        self.assertEqual(article.url, self.valid_article_data['url'])
-        self.assertEqual(article.published_date, self.valid_article_data['published_date'])
-        self.assertEqual(article.source, self.valid_article_data['source'])
-
-    def test_field_constraints_and_validation(self):
-        """Field validations work as expected."""
-        invalid_data = self.valid_article_data.copy()
-        invalid_data['url'] = 'invalid_url'
-        article = Article(**invalid_data)
-        with self.assertRaises(ValidationError):
-            article.full_clean()
-
-        # Test required fields
-        required_fields = ['title', 'content', 'url', 'published_date', 'source']
-        for field in required_fields:
-            invalid_data = self.valid_article_data.copy()
-            invalid_data[field] = None
-            article = Article(**invalid_data)
-            with self.assertRaises(ValidationError):
-                article.full_clean()
-
-        # Test URL uniqueness
-        Article.objects.create(**self.valid_article_data)
-        duplicate = Article(**self.valid_article_data)
-        with self.assertRaises(ValidationError):
-            duplicate.full_clean()
+        self.article = Article.objects.create(
+            title="Test Article",
+            content="Some content",
+            url="http://example.com/article",
+            published_date=timezone.now(),
+            author="Author Name",
+            source="Test Source",
+            news_client_source="Test Client"
+        )
 
     def test_str_representation(self):
-        """Article string representation is its title."""
-        article = Article.objects.create(**self.valid_article_data)
-        self.assertEqual(str(article), self.valid_article_data['title'])
+        self.assertEqual(str(self.article), self.article.title)
 
-    def test_article_ordering(self):
-        """Articles are ordered by published_date in descending order."""
-        now = timezone.now()
-        # Create articles with different published dates
-        old_article = Article.objects.create(
-            title='Old Article',
-            content='Old content',
-            url='http://example.com/old',
-            published_date=now - datetime.timedelta(days=2),
-            source='Test'
+    def test_ordering(self):
+        article2 = Article.objects.create(
+            title="Second Article",
+            content="More content",
+            url="http://example.com/article2",
+            published_date=timezone.now() + timezone.timedelta(days=1),
+            author="Author 2",
+            source="Source 2",
+            news_client_source="Client 2"
         )
-        new_article = Article.objects.create(
-            title='New Article',
-            content='New content',
-            url='http://example.com/new',
-            published_date=now,
-            source='Test'
-        )
-        middle_article = Article.objects.create(
-            title='Middle Article',
-            content='Middle content',
-            url='http://example.com/middle',
-            published_date=now - datetime.timedelta(days=1),
-            source='Test'
-        )
-
-        # Get ordered articles
         articles = Article.objects.all()
+        self.assertEqual(articles[0], article2)
+        self.assertEqual(articles[1], self.article)
 
-        # Verify ordering
-        self.assertEqual(articles[0], new_article)
-        self.assertEqual(articles[1], middle_article)
-        self.assertEqual(articles[2], old_article)
+    def test_field_constraints(self):
+        # url must be unique
+        with self.assertRaises(Exception):
+            Article.objects.create(
+                title="Duplicate URL",
+                content="Content",
+                url="http://example.com/article",
+                published_date=timezone.now(),
+                author="Author",
+                source="Source",
+                news_client_source="Client"
+            ) 

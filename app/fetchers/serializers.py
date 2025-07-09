@@ -19,7 +19,7 @@ from .models import FetchLog
 class FetchLogSerializer(serializers.ModelSerializer):
     """Serializer for FetchLog model."""
 
-    source_name = serializers.CharField(source='source.name', read_only=True)
+    source_name = serializers.CharField(source='source', read_only=True)
     duration = serializers.SerializerMethodField()
 
     class Meta:

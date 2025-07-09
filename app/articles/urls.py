@@ -11,8 +11,8 @@ from articles import views
 app_name = 'articles'
 
 router = DefaultRouter()
-router.register('', views.ArticleViewSet, basename='article')
+router.register('', views.ArticleViewSet, basename='articles')
 
 urlpatterns = router.urls + [
-    path('<int:pk>/summary/', views.ArticleViewSet.as_view({'get': 'summary'}), name='article-summary'),
+    path('<int:pk>/summary/', views.ArticleViewSet.as_view({'get': 'summary'}), name='articles-summary'),
 ]
