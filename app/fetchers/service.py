@@ -182,7 +182,7 @@ class NewsApiFetcher():
                 raise FetcherError("No data returned from NewsAPI")
 
             # Save raw data to file
-            self._save_raw_data(fetch_log, response_data)
+            # self._save_raw_data(fetch_log, response_data)
 
             # Process the response
             processed_data = self._process_response(response_data)

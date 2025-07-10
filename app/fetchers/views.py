@@ -1,19 +1,16 @@
 """Views for the fetchers app."""
 from rest_framework import status
-from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.utils import timezone
-from fetchers.models import FetchLog
 from fetchers.service import NewsApiFetcher, FetcherError
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAdminUser
 from rest_framework.authentication import TokenAuthentication
 
 
 class ArticleFetchView(APIView):
     """View to manually trigger NewsApiFetcher.fetch_and_save."""
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def post(self, request):
         query_params = request.data.get('query_params', None)

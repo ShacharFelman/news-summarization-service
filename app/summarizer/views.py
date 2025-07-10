@@ -1,18 +1,13 @@
-from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
-from django.views import View
-from django.contrib.auth.decorators import login_required
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from news_service.permissions import IsAuthenticatedReadOnlyOrAdmin
 from rest_framework.authentication import TokenAuthentication
 from drf_spectacular.utils import extend_schema
 from .service import SummarizerService
 from .models import Summary
-import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,7 +15,7 @@ logger = logging.getLogger(__name__)
 class SummarizerView(APIView):
     """Base view for summarizer functionality."""
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedReadOnlyOrAdmin]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

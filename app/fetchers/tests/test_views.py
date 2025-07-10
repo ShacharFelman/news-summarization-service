@@ -19,24 +19,28 @@ class ArticleFetchViewTest(APITestCase):
         response = self.client.post(url, {}, format='json')
         self.assertEqual(response.status_code, 401)
 
-    def test_fetch_articles_authenticated_success(self):
-        """Test successful article fetching with authentication."""
+    def test_fetch_articles_authenticated_admin(self):
+        """Test successful article fetching with admin authentication (allowed)."""
         with patch('fetchers.views.NewsApiFetcher') as mock_fetcher_class:
             mock_fetcher = MagicMock()
             mock_fetcher_class.return_value = mock_fetcher
-            
             self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
             url = reverse('fetchers:fetch_articles')
             data = {'query_params': {'category': 'technology'}}
-            
             response = self.client.post(url, data, format='json')
-            
             self.assertEqual(response.status_code, 200)
             self.assertIn('message', response.data)
             mock_fetcher.fetch_and_save.assert_called_once_with(
                 {'category': 'technology'}, 
                 source='NewsClientFetcher'
             )
+
+    def test_fetch_articles_authenticated_non_admin(self):
+        """Test that non-admin authenticated users are forbidden."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.user_token.key}')
+        url = reverse('fetchers:fetch_articles')
+        response = self.client.post(url, {}, format='json')
+        self.assertEqual(response.status_code, 403)
 
     def test_fetch_articles_without_query_params(self):
         """Test article fetching without query parameters."""

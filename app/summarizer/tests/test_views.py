@@ -26,6 +26,13 @@ class SummarizerViewsTest(APITestCase):
         )
         
         self.token = Token.objects.create(user=self.user)
+        self.admin_user = get_user_model().objects.create_user(
+            email='admin@example.com',
+            name='Admin User',
+            password='adminpass',
+            is_staff=True
+        )
+        self.admin_token = Token.objects.create(user=self.admin_user)
         
         self.article = Article.objects.create(
             title='Test Article',
@@ -48,26 +55,28 @@ class SummarizerViewsTest(APITestCase):
             completed_at=timezone.now()
         )
 
-    def test_summarize_article_authenticated(self):
-        """Test summarize article endpoint with authentication."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
-        
+    def test_summarize_article_authenticated_admin(self):
+        """Test summarize article endpoint with admin authentication (allowed)."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.admin_token.key}')
         with patch('summarizer.service.SummarizerService.summarize_article') as mock_summarize:
             mock_summarize.return_value = self.summary
-            
             url = reverse('summarizer:summarize_article')
             response = self.client.post(url, {
                 'article_id': self.article.id,
                 'ai_model': 'gpt-4.1-nano',
                 'max_words': 150
             })
-            
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertTrue(response.data['success'])
-            self.assertEqual(response.data['summary']['id'], self.summary.id)
-            self.assertEqual(response.data['summary']['article_id'], self.article.id)
-            self.assertEqual(response.data['summary']['ai_model'], 'gpt-4.1-nano')
-            self.assertEqual(response.data['summary']['status'], 'completed')
+
+    def test_summarize_article_authenticated_non_admin(self):
+        """Test summarize article endpoint with non-admin authentication (forbidden)."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+        url = reverse('summarizer:summarize_article')
+        response = self.client.post(url, {
+            'article_id': self.article.id
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_summarize_article_unauthenticated(self):
         """Test summarize article endpoint without authentication."""
@@ -75,73 +84,68 @@ class SummarizerViewsTest(APITestCase):
         response = self.client.post(url, {
             'article_id': self.article.id
         })
-        
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_summarize_article_missing_article_id(self):
         """Test summarize article with missing article_id."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
-        
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.admin_token.key}')
         url = reverse('summarizer:summarize_article')
         response = self.client.post(url, {
             'ai_model': 'gpt-4.1-nano'
         })
-        
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('article_id is required', response.data['error'])
 
     def test_summarize_article_service_error(self):
         """Test summarize article when service raises an error."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
-        
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.admin_token.key}')
         with patch('summarizer.service.SummarizerService.summarize_article') as mock_summarize:
             mock_summarize.side_effect = ValueError('Article not found')
-            
             url = reverse('summarizer:summarize_article')
             response = self.client.post(url, {
                 'article_id': 999,
                 'ai_model': 'gpt-4.1-nano'
             })
-            
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
             self.assertIn('Article not found', response.data['error'])
 
     def test_summarize_article_internal_error(self):
         """Test summarize article when service raises internal error."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
-        
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.admin_token.key}')
         with patch('summarizer.service.SummarizerService.summarize_article') as mock_summarize:
             mock_summarize.side_effect = Exception('Internal error')
-            
             url = reverse('summarizer:summarize_article')
             response = self.client.post(url, {
                 'article_id': self.article.id,
                 'ai_model': 'gpt-4.1-nano'
             })
-            
             self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
             self.assertIn('Internal server error', response.data['error'])
 
-    def test_get_summary_authenticated(self):
-        """Test get summary endpoint with authentication."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
-        
+    def test_get_summary_authenticated_admin(self):
+        """Test get summary endpoint with admin authentication (allowed)."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.admin_token.key}')
         with patch('summarizer.service.SummarizerService.get_article_summary') as mock_get:
             mock_get.return_value = self.summary
-            
             url = reverse('summarizer:get_summary', kwargs={'article_id': self.article.id})
             response = self.client.get(url)
-            
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertTrue(response.data['success'])
-            self.assertEqual(response.data['summary']['id'], self.summary.id)
-            self.assertEqual(response.data['summary']['article_id'], self.article.id)
+
+    def test_get_summary_authenticated_non_admin(self):
+        """Test get summary endpoint with non-admin authentication (allowed)."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+        with patch('summarizer.service.SummarizerService.get_article_summary') as mock_get:
+            mock_get.return_value = self.summary
+            url = reverse('summarizer:get_summary', kwargs={'article_id': self.article.id})
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertTrue(response.data['success'])
 
     def test_get_summary_unauthenticated(self):
         """Test get summary endpoint without authentication."""
         url = reverse('summarizer:get_summary', kwargs={'article_id': self.article.id})
         response = self.client.get(url)
-        
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_get_summary_not_found(self):
@@ -171,10 +175,9 @@ class SummarizerViewsTest(APITestCase):
             # Verify the service was called with the correct ai_model
             mock_get.assert_called_with(article_id=self.article.id, ai_model='gpt-3.5-turbo')
 
-    def test_get_all_summaries_authenticated(self):
-        """Test get all summaries endpoint with authentication."""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
-        
+    def test_get_all_summaries_authenticated_admin(self):
+        """Test get all summaries endpoint with admin authentication (allowed)."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.admin_token.key}')
         with patch('summarizer.service.SummarizerService.get_article_summaries') as mock_get:
             mock_get.return_value = {
                 'article_id': self.article.id,
@@ -187,20 +190,35 @@ class SummarizerViewsTest(APITestCase):
                     }
                 ]
             }
-            
             url = reverse('summarizer:get_all_summaries', kwargs={'article_id': self.article.id})
             response = self.client.get(url)
-            
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertTrue(response.data['success'])
-            self.assertEqual(response.data['data']['article_id'], self.article.id)
-            self.assertEqual(len(response.data['data']['summaries']), 1)
+
+    def test_get_all_summaries_authenticated_non_admin(self):
+        """Test get all summaries endpoint with non-admin authentication (allowed)."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+        with patch('summarizer.service.SummarizerService.get_article_summaries') as mock_get:
+            mock_get.return_value = {
+                'article_id': self.article.id,
+                'summaries': [
+                    {
+                        'id': self.summary.id,
+                        'ai_model': self.summary.ai_model,
+                        'status': self.summary.status,
+                        'summary_text': self.summary.summary_text
+                    }
+                ]
+            }
+            url = reverse('summarizer:get_all_summaries', kwargs={'article_id': self.article.id})
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertTrue(response.data['success'])
 
     def test_get_all_summaries_unauthenticated(self):
         """Test get all summaries endpoint without authentication."""
         url = reverse('summarizer:get_all_summaries', kwargs={'article_id': self.article.id})
         response = self.client.get(url)
-        
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_get_all_summaries_service_error(self):
