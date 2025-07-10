@@ -1,1 +1,0 @@
-# news-summarization-service
