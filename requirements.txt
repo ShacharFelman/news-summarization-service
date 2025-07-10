@@ -10,3 +10,4 @@ langchain
 langchain_openai
 django-celery-beat
 flower
+django-redis

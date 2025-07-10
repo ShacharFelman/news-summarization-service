@@ -4,6 +4,8 @@ from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from articles.models import Article
 from users.models import User
+from django.core.cache import cache
+import time
 
 class ArticleViewSetDetailTest(APITestCase):
     def setUp(self):
@@ -65,4 +67,34 @@ class ArticleViewSetDetailTest(APITestCase):
         url = reverse('articles:articles-detail', args=[self.article.id])
         response = self.client.delete(url)
         self.assertEqual(response.status_code, 204)
-        self.assertFalse(Article.objects.filter(id=self.article.id).exists()) 
+        self.assertFalse(Article.objects.filter(id=self.article.id).exists())
+
+    def test_retrieve_article_caching(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.user_token.key}')
+        url = reverse('articles:articles-detail', args=[self.article.id])
+        cache.clear()
+        start = time.time()
+        response1 = self.client.get(url)
+        uncached_time = time.time() - start
+        self.assertEqual(response1.status_code, 200)
+        start = time.time()
+        response2 = self.client.get(url)
+        cached_time = time.time() - start
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response1.data, response2.data)
+        self.assertLess(cached_time, uncached_time * 0.8 + 0.05)
+
+    def test_summary_article_caching(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.user_token.key}')
+        url = reverse('articles:articles-summary', args=[self.article.id])
+        cache.clear()
+        start = time.time()
+        response1 = self.client.get(url)
+        uncached_time = time.time() - start
+        self.assertEqual(response1.status_code, 200)
+        start = time.time()
+        response2 = self.client.get(url)
+        cached_time = time.time() - start
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response1.data, response2.data)
+        self.assertLess(cached_time, uncached_time * 0.8 + 0.05) 

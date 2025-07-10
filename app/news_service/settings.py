@@ -25,7 +25,7 @@ try:
     ARTICLES_API_URL = reverse_lazy('articles:article-list')
 except Exception:
     # Fallback for contexts where Django isn't fully loaded (e.g., scripts, celery)
-    ARTICLES_API_URL = os.environ.get('ARTICLES_API_URL', 'http://localhost:8000/api/article/')
+    ARTICLES_API_URL = os.environ.get('ARTICLES_API_URL', 'http://localhost:8000/api/articles/')
 
 
 # Quick-start development settings - unsuitable for production
@@ -215,4 +215,15 @@ LOGGING = {
             'propagate': True,
         },
     },
+}
+
+# ====== REDIS CACHE CONFIGURATION ======
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': os.environ.get('REDIS_CACHE_URL', 'redis://redis:6379/1'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
 }

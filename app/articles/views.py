@@ -2,6 +2,9 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from news_service.permissions import IsAuthenticatedReadOnlyOrAdmin
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+from rest_framework.authentication import TokenAuthentication
 
 from articles.models import Article
 from articles.serializers import ArticleSerializer
@@ -25,7 +28,15 @@ class ArticleViewSet(viewsets.ModelViewSet):
     queryset = Article.objects.all().order_by('-published_date')
     serializer_class = ArticleSerializer
     permission_classes = [IsAuthenticatedReadOnlyOrAdmin]
+    authentication_classes = [TokenAuthentication]
 
+    # Cache GET list endpoint (5 minutes)
+    @method_decorator(cache_page(60 * 5), name='list')
+    @method_decorator(cache_page(60 * 5), name='retrieve')
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    @method_decorator(cache_page(60 * 5))
     @action(detail=True, methods=['get'], url_path='summary')
     def summary(self, request, pk=None):
         """Fetch or generate a summary of an article."""

@@ -13,7 +13,7 @@ from langchain.prompts import ChatPromptTemplate
 logger = logging.getLogger(__name__)
 
 class SummarizerService:
-    """Service for AI-powered article summarization using LangChain (2025 best practice)."""
+    """Service for generating article summaries using OpenAI models via LangChain."""
 
     def __init__(self):
         # Prepare model mapping for future flexibility
@@ -29,7 +29,7 @@ class SummarizerService:
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY must be set in Django settings")
 
-        # Prepare a chat prompt template for summarization
+        # Chat prompt template for summarization
         self.summarization_prompt = ChatPromptTemplate.from_messages([
             (
                 "system",

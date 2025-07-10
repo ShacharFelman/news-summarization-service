@@ -9,6 +9,4 @@ class SummarizerConfig(AppConfig):
 
     def ready(self):
         """Initialize the app when Django starts."""
-        # Import signals if any
-        # import summarizer.signals
         pass
