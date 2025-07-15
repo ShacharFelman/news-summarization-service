@@ -14,12 +14,14 @@ from users.serializers import (
 class CreateUserView(generics.CreateAPIView):
     """Create a new user API."""
     serializer_class = UserSerializer
+    permission_classes = [permissions.AllowAny]
 
 
 class CreateTokenView(ObtainAuthToken):
     """Create a new auth token for user."""
     serializer_class = AuthTokenSerializer
     renderer_classes = api_settings.DEFAULT_RENDERER_CLASSES
+    permission_classes = [permissions.AllowAny]
 
 
 class ManagerUserView(generics.RetrieveUpdateAPIView):

@@ -88,7 +88,7 @@ class ArticleFetchViewTest(APITestCase):
             
             self.assertEqual(response.status_code, 500)
             self.assertIn('error', response.data)
-            self.assertIn('Unexpected error', response.data['error'])
+            self.assertIn('Internal server error.', response.data['error'])
 
     def test_fetch_articles_method_not_allowed(self):
         """Test that GET requests are not allowed."""

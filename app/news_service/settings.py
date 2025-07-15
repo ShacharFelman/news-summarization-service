@@ -32,10 +32,10 @@ except Exception:
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-+g@cyaf7nz2exm9#)xr=a4z3n=lm7ypmd7%x7*-zyfzs)_p9f^'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'insecure-dev-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', '0').lower() in ('1', 'true', 'yes')
 
 ALLOWED_HOSTS = []
 
@@ -43,6 +43,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -61,6 +62,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -155,6 +157,9 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
     ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
 }
 
 SPECTACULAR_SETTINGS = {
@@ -227,3 +232,9 @@ CACHES = {
         }
     }
 }
+
+# ====== CORS CONFIGURATION ======
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # React dev server
+    #"https://your-frontend-domain.com",  # Replace with your production frontend domain
+]

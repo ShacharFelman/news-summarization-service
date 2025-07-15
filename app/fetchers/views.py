@@ -6,6 +6,9 @@ from fetchers.service import NewsApiFetcher, FetcherError
 from rest_framework.permissions import IsAdminUser
 from rest_framework.authentication import TokenAuthentication
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 class ArticleFetchView(APIView):
     """View to manually trigger NewsApiFetcher.fetch_and_save."""
@@ -19,8 +22,10 @@ class ArticleFetchView(APIView):
             fetcher.fetch_and_save(query_params, source='NewsClientFetcher')
             return Response({'message': 'Fetch and save completed successfully.'}, status=status.HTTP_200_OK)
         except FetcherError as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"FetcherError in ArticleFetchView: {str(e)}")
+            return Response({'error': 'Internal server error.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
-            return Response({'error': f'Unexpected error: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Unexpected error in ArticleFetchView: {str(e)}")
+            return Response({'error': 'Internal server error.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

@@ -11,6 +11,9 @@ from articles.serializers import ArticleSerializer
 from summarizer.service import SummarizerService
 from summarizer.serializers import SummarySerializer
 
+import logging
+
+logger = logging.getLogger(__name__)
 class ArticleViewSet(viewsets.ModelViewSet):
     """
     A viewset for viewing articles.
@@ -46,6 +49,8 @@ class ArticleViewSet(viewsets.ModelViewSet):
         except Article.DoesNotExist:
             return Response({'detail': 'Article not found.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            logger.error(f"Error in ArticleViewSet.summary: {str(e)}")
+            return Response({'error': 'Internal server error.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         serializer = SummarySerializer(summary)
         return Response(serializer.data)

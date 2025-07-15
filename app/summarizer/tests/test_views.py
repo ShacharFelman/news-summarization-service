@@ -100,13 +100,13 @@ class SummarizerViewsTest(APITestCase):
         """Test summarize article when service raises an error."""
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.admin_token.key}')
         with patch('summarizer.service.SummarizerService.summarize_article') as mock_summarize:
-            mock_summarize.side_effect = ValueError('Article not found')
+            mock_summarize.side_effect = Article.DoesNotExist()
             url = reverse('summarizer:summarize_article')
             response = self.client.post(url, {
                 'article_id': 999,
                 'ai_model': 'gpt-4.1-nano'
             })
-            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
             self.assertIn('Article not found', response.data['error'])
 
     def test_summarize_article_internal_error(self):
@@ -250,11 +250,7 @@ class SummarizerViewsTest(APITestCase):
         """Test summary status endpoint without authentication."""
         url = reverse('summarizer:summary_status', kwargs={'summary_id': self.summary.id})
         response = self.client.get(url)
-        
-        # The summary_status view doesn't require authentication
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['success'])
-        self.assertEqual(response.data['status']['id'], self.summary.id)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_summary_status_not_found(self):
         """Test summary status when summary doesn't exist."""

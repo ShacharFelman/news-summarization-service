@@ -1,13 +1,15 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from rest_framework.views import APIView
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 from rest_framework import status
-from news_service.permissions import IsAuthenticatedReadOnlyOrAdmin
 from rest_framework.authentication import TokenAuthentication
+from news_service.permissions import IsAuthenticatedReadOnlyOrAdmin
 from drf_spectacular.utils import extend_schema
 from .service import SummarizerService
 from .models import Summary
+from articles.models import Article
 import logging
 
 logger = logging.getLogger(__name__)
@@ -68,9 +70,11 @@ class SummarizeArticleView(SummarizerView):
                     'completed_at': summary.completed_at.isoformat() if summary.completed_at else None
                 }
             })
+        except Article.DoesNotExist:
+            return Response({'error': 'Article not found'}, status=status.HTTP_404_NOT_FOUND)
         except ValueError as e:
             logger.error(f"Validation error: {str(e)}")
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Invalid input.'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Error in summarize view: {str(e)}")
             return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -87,7 +91,12 @@ class GetSummaryView(SummarizerView):
                 ai_model=ai_model
             )
             if not summary:
+                try:
+                    Article.objects.get(id=article_id)
+                except Article.DoesNotExist:
+                    return Response({'error': 'Article not found'}, status=status.HTTP_404_NOT_FOUND)
                 return Response({'error': 'Summary not found'}, status=status.HTTP_404_NOT_FOUND)
+            
             return Response({
                 'success': True,
                 'summary': {
@@ -113,16 +122,21 @@ class GetAllSummariesView(SummarizerView):
     def get(self, request, article_id):
         """Get all summaries for a specific article."""
         try:
+            try:
+                Article.objects.get(id=article_id)
+            except Article.DoesNotExist:
+                return Response({'error': 'Article not found'}, status=status.HTTP_404_NOT_FOUND)
             summaries_data = self.summarizer_service.get_article_summaries(article_id)
             return Response({'success': True, 'data': summaries_data})
         except Exception as e:
             logger.error(f"Error in get all summaries view: {str(e)}")
             return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-from rest_framework.decorators import api_view
 
 @extend_schema(responses={200: {'type': 'object'}})
 @api_view(["GET"])
+@permission_classes([IsAuthenticatedReadOnlyOrAdmin])
+@authentication_classes([TokenAuthentication])
 def summary_status(request, summary_id):
     """Get the status of a specific summary."""
     try:
