@@ -42,15 +42,25 @@ class ArticleViewSet(viewsets.ModelViewSet):
     @method_decorator(cache_page(60 * 5))
     @action(detail=True, methods=['get'], url_path='summary')
     def summary(self, request, pk=None):
-        """Fetch or generate a summary of an article."""
+        """Fetch or generate a summary of an article asynchronously."""
         service = SummarizerService()
+        # Ensure the article exists before calling the service
         try:
-            summary = service.summarize_article(article_id=pk)
+            Article.objects.get(id=pk)
+        except Article.DoesNotExist:
+            return Response({'detail': 'Article not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            summary = service.summarize_article_async(article_id=pk, user=request.user if request.user.is_authenticated else None)
         except Article.DoesNotExist:
             return Response({'detail': 'Article not found.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-
             logger.error(f"Error in ArticleViewSet.summary: {str(e)}")
             return Response({'error': 'Internal server error.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         serializer = SummarySerializer(summary)
-        return Response(serializer.data)
+        response_data = serializer.data
+        if summary.status in ['pending', 'in_progress']:
+            return Response({'success': True, 'summary': response_data, 'message': 'Summary is being processed.'}, status=status.HTTP_202_ACCEPTED)
+        elif summary.status == 'completed':
+            return Response({'success': True, 'summary': response_data}, status=status.HTTP_200_OK)
+        elif summary.status == 'failed':
+            return Response({'success': False, 'summary': response_data, 'message': 'Summary generation failed.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

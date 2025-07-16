@@ -8,6 +8,7 @@ class Summary(models.Model):
 
     SUMMARY_STATUS_CHOICES = [
         ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
     ]
@@ -90,6 +91,10 @@ class Summary(models.Model):
     @property
     def is_pending(self):
         return self.status == 'pending'
+
+    @property
+    def is_in_progress(self):
+        return self.status == 'in_progress'
 
     class Meta:
         ordering = ['-created_at']

@@ -77,7 +77,7 @@ class SummarizerService:
             )
 
             if summary:
-                logger.info(f"Summary already exists for article {article_id}")
+                logger.info(f"Summary exists for article {article_id}")
                 return summary
 
             # Create or reuse a summary record
@@ -136,10 +136,41 @@ class SummarizerService:
         # For ChatOpenAI, result.content holds the text
         summary_text = result.content if hasattr(result, "content") else str(result)
 
-        # Get token usage if available (LangChain OpenAI sometimes supports response.usage)
+        # Get token usage if available
         token_count = getattr(result, "usage", {}).get("total_tokens", len(summary_text.split()))
 
         return summary_text.strip(), token_count
+
+    def summarize_article_async(self, article_id: int, ai_model: str = None, user=None, max_words: int = 150) -> Summary:
+        """
+        Asynchronously summarize an article by enqueuing a Celery task.
+        Returns the Summary object (status will be 'pending' or 'in_progress').
+        """
+        model_key = ai_model or self.default_model
+        # Ensure the article exists, or raise Article.DoesNotExist
+        try:
+            article = Article.objects.get(id=article_id)
+        except Article.DoesNotExist:
+            logger.error(f"Article {article_id} not found (async)")
+            raise
+        # Check for existing completed summary
+        summary = Summary.objects.filter(article=article, ai_model=model_key, status="completed").first()
+        if summary:
+            return summary
+        summary, created = Summary.objects.get_or_create(
+            article=article,
+            ai_model=model_key,
+            defaults={
+                'status': 'pending',
+                'requested_by': user
+            }
+        )
+        # If already being processed or completed, return existing summary
+        if not created and summary.status in ['pending', 'in_progress', 'completed']:
+            return summary
+        from .tasks import summarize_article_task
+        summarize_article_task.delay(article_id, model_key, user.id if user else None, max_words)
+        return summary
 
     def get_article_summary(self, article_id: int, ai_model: str = None) -> Optional[Summary]:
         model_key = ai_model or self.default_model

@@ -10,10 +10,12 @@ The News Summarization Service is a Django-based platform that fetches news arti
 - **User Management:** Register, authenticate, and manage users (email-based login).
 - **Article Management:** CRUD operations for news articles.
 - **Fetching:** Periodic and manual fetching of articles from NewsAPI.
-- **Summarization:** AI-powered summarization of articles using OpenAI models.
+- **Summarization:** AI-powered, **asynchronous** summarization of articles using OpenAI models (via Celery tasks).
 - **API Documentation:** Auto-generated with drf-spectacular (Swagger/OpenAPI).
 - **Dockerized:** Full Docker setup for app, Postgres, Redis, Celery worker/beat/flower.
 - **Dev Container:** VSCode devcontainer support for easy onboarding.
+- **CORS Support:** Configurable CORS headers for cross-origin requests.
+- **Redis Caching:** Redis is used for both Celery and API caching.
 
 ---
 
@@ -22,8 +24,9 @@ The News Summarization Service is a Django-based platform that fetches news arti
 - **Django REST Framework** for API endpoints
 - **Celery** for background tasks (fetching, summarization)
 - **PostgreSQL** as the database
-- **Redis** as the Celery broker
+- **Redis** as the Celery broker **and API cache**
 - **OpenAI (via LangChain)** for summarization
+- **CORS** for cross-origin API access
 
 ---
 
@@ -44,6 +47,8 @@ NEWSAPI_API_KEY=your_newsapi_key
 OPENAI_API_KEY=your_openai_key
 CELERY_BROKER_URL=redis://redis:6379/0
 CELERY_RESULT_BACKEND=redis://redis:6379/0
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
+REDIS_URL=redis://redis:6379/0
 ```
 
 ---
@@ -81,20 +86,73 @@ CELERY_RESULT_BACKEND=redis://redis:6379/0
 
 ### Articles
 - `GET /api/articles/` — List articles
-- `POST /api/articles/` — Create article (admin only)
+- `POST /api/articles/` — Create article (**admin only**)
 - `GET /api/articles/{id}/` — Retrieve article
-- `PUT /api/articles/{id}/` — Update article (admin only)
-- `DELETE /api/articles/{id}/` — Delete article (admin only)
+- `PUT /api/articles/{id}/` — Update article (**admin only**)
+- `DELETE /api/articles/{id}/` — Delete article (**admin only**)
 - `GET /api/articles/{id}/summary/` — Get/generate summary for article
 
+**Possible Responses for `/api/articles/{id}/summary/`:**
+- **200 OK** (summary completed):
+  ```json
+  {
+    "success": true,
+    "summary": { ... }
+  }
+  ```
+- **202 Accepted** (summary is being processed):
+  ```json
+  {
+    "success": true,
+    "summary": { ... },
+    "message": "Summary is being processed."
+  }
+  ```
+- **500 Internal Server Error** (summary failed or error):
+  ```json
+  {
+    "success": false,
+    "summary": { ... },
+    "message": "Summary generation failed."
+  }
+  ```
+  or
+  ```json
+  {
+    "error": "Internal server error."
+  }
+  ```
+- **404 Not Found** (article does not exist):
+  ```json
+  {
+    "detail": "Article not found."
+  }
+  ```
+- **403 Forbidden** (not enough permissions):
+  ```json
+  {
+    "detail": "You do not have permission to perform this action."
+  }
+  ```
+- **401 Unauthorized** (not authenticated):
+  ```json
+  {
+    "detail": "Authentication credentials were not provided."
+  }
+  ```
+
 ### Fetchers
-- `POST /api/fetchers/fetch/` — Manually trigger article fetch (admin only)
+- `POST /api/fetchers/fetch/` — Manually trigger article fetch (**admin only**)
 
 ### Summarizer
-- `POST /api/summarizer/summarize/` — Summarize an article by ID  (admin only)
-- `GET /api/summarizer/article/{article_id}/summary/` — Get summary for article
-- `GET /api/summarizer/article/{article_id}/summaries/` — Get all summaries for article
-- `GET /api/summarizer/summary/{summary_id}/status/` — Get summary status
+- `POST /api/summarizer/summarize/` — **Asynchronously** summarize an article by ID (**admin only**)
+- `GET /api/summarizer/article/{article_id}/summary/` — Get summary for article (**admin only**)
+- `GET /api/summarizer/article/{article_id}/summaries/` — Get all summaries for article (**admin only**)
+- `GET /api/summarizer/summary/{summary_id}/status/` — Get summary status (**admin only**)
+
+> **Note:** All summarizer endpoints require authentication and admin privileges. Non-admins receive `403 Forbidden`, unauthenticated users receive `401 Unauthorized`.
+> 
+> The responses of `POST /api/summarizer/summarize/` are the same as `/api/articles/{id}/summary/` above.
 
 ---
 
@@ -166,7 +224,7 @@ Authorization: Token <auth_token>
 }
 ```
 
-### 4. Summarize Article
+### 4. Summarize Article (Async)
 **Request:**
 ```http
 POST /api/summarizer/summarize/
@@ -178,24 +236,41 @@ Content-Type: application/json
   "max_words": 150
 }
 ```
-**Response:**
-```json
-{
-  "success": true,
-  "summary": {
-    "id": 1,
-    "article_id": 1,
-    "article_title": "Test Article",
-    "summary_text": "This is a summary...",
-    "ai_model": "gpt-4.1-nano",
-    "status": "completed",
-    "word_count": 45,
-    "tokens_used": 120,
-    "created_at": "2025-07-09T12:01:00Z",
-    "completed_at": "2025-07-09T12:01:05Z"
+**Possible Responses:**
+- **202 Accepted** (summary is being processed):
+  ```json
+  {
+    "success": true,
+    "summary": { ... },
+    "message": "Summary is being processed."
   }
-}
-```
+  ```
+- **200 OK** (summary completed):
+  ```json
+  {
+    "success": true,
+    "summary": { ... }
+  }
+  ```
+- **500 Internal Server Error** (summary failed):
+  ```json
+  {
+    "success": false,
+    "summary": { ... },
+    "message": "Summary generation failed."
+  }
+  ```
+- **403 Forbidden** (non-admin):
+  ```json
+  { "detail": "You do not have permission to perform this action." }
+  ```
+- **401 Unauthorized** (not logged in):
+  ```json
+  { "detail": "Authentication credentials were not provided." }
+  ```
+
+**Polling for Status:**
+- Use `GET /api/summarizer/summary/{summary_id}/status/` to check the status of a summary (returns `pending`, `in_progress`, `completed`, or `failed`).
 
 ### 5. Fetch Articles (Admin Only)
 **Request:**
@@ -228,23 +303,4 @@ Content-Type: application/json
   python manage.py test
   ```
 - Lint code:
-  ```sh
-  flake8
   ```
-
----
-
-## Troubleshooting
-- Ensure all environment variables are set (see `.env` example above).
-- For Docker, ensure no port conflicts on 8000, 5432, 6379, 5555.
-- If Celery tasks are not running, check the logs for `celery-worker` and `celery-beat` containers.
-
----
-
-## License
-MIT License
-
----
-
-## Contact
-Maintainer: Shachar Felman (<shaharfelmandev@gmail.com>) 

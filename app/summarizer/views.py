@@ -5,10 +5,11 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
-from news_service.permissions import IsAuthenticatedReadOnlyOrAdmin
+from rest_framework.permissions import IsAdminUser
 from drf_spectacular.utils import extend_schema
 from .service import SummarizerService
 from .models import Summary
+from .serializers import SummarySerializer
 from articles.models import Article
 import logging
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class SummarizerView(APIView):
     """Base view for summarizer functionality."""
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticatedReadOnlyOrAdmin]
+    permission_classes = [IsAdminUser]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -41,35 +42,23 @@ class SummarizerView(APIView):
 class SummarizeArticleView(SummarizerView):
     """View to handle article summarization requests."""
     def post(self, request):
-        """Create a new summary for an article."""
+        """
+        Create a new summary for an article. If a summary is being processed, return status 202 and 'in_progress' status.
+        """
         article_id = request.data.get('article_id')
-        ai_model = request.data.get('ai_model', 'openai-gpt-3.5-turbo')
+        ai_model = request.data.get('ai_model', 'gpt-4.1-nano')
         max_words = request.data.get('max_words', 150)
         if not article_id:
             return Response({'error': 'article_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         user = request.user if request.user.is_authenticated else None
+
         try:
-            summary = self.summarizer_service.summarize_article(
+            summary = self.summarizer_service.summarize_article_async(
                 article_id=article_id,
                 ai_model=ai_model,
                 user=user,
                 max_words=max_words
             )
-            return Response({
-                'success': True,
-                'summary': {
-                    'id': summary.id,
-                    'article_id': summary.article.id,
-                    'article_title': summary.article.title,
-                    'summary_text': summary.summary_text,
-                    'ai_model': summary.ai_model,
-                    'status': summary.status,
-                    'word_count': summary.word_count,
-                    'tokens_used': summary.tokens_used,
-                    'created_at': summary.created_at.isoformat(),
-                    'completed_at': summary.completed_at.isoformat() if summary.completed_at else None
-                }
-            })
         except Article.DoesNotExist:
             return Response({'error': 'Article not found'}, status=status.HTTP_404_NOT_FOUND)
         except ValueError as e:
@@ -79,12 +68,22 @@ class SummarizeArticleView(SummarizerView):
             logger.error(f"Error in summarize view: {str(e)}")
             return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        serializer = SummarySerializer(summary)
+        response_data = serializer.data
+
+        if summary.status in ['pending', 'in_progress']:
+            return Response({'success': True, 'summary': response_data, 'message': 'Summary is being processed.'}, status=status.HTTP_202_ACCEPTED)
+        elif summary.status == 'completed':
+            return Response({'success': True, 'summary': response_data}, status=status.HTTP_200_OK)
+        elif summary.status == 'failed':
+            return Response({'success': False, 'summary': response_data, 'message': 'Summary generation failed.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @extend_schema(responses={200: {'type': 'object'}})
 class GetSummaryView(SummarizerView):
     """View to retrieve existing summaries."""
     def get(self, request, article_id):
         """Get summary for a specific article."""
-        ai_model = request.GET.get('ai_model', 'openai-gpt-3.5-turbo')
+        ai_model = request.GET.get('ai_model', 'gpt-4.1-nano')
         try:
             summary = self.summarizer_service.get_article_summary(
                 article_id=article_id,
@@ -135,7 +134,7 @@ class GetAllSummariesView(SummarizerView):
 
 @extend_schema(responses={200: {'type': 'object'}})
 @api_view(["GET"])
-@permission_classes([IsAuthenticatedReadOnlyOrAdmin])
+@permission_classes([IsAdminUser])
 @authentication_classes([TokenAuthentication])
 def summary_status(request, summary_id):
     """Get the status of a specific summary."""

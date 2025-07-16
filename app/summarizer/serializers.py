@@ -2,6 +2,10 @@ from rest_framework import serializers
 from .models import Summary
 
 class SummarySerializer(serializers.ModelSerializer):
+    """
+    Serializer for the Summary model, including support for status values:
+    'pending', 'in_progress', 'completed', and 'failed'.
+    """
     class Meta:
         model = Summary
         fields = [
